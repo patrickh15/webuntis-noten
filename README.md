@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -71,3 +72,7 @@ export default defineConfig([
   },
 ])
 ```
+=======
+# webuntis-noten
+Extrahiert die Noten aus einer CSV aus WebUntis und erstellt eine lesbare Übersicht
+>>>>>>> 7fdbfdf66098354b45e0b348d11d605193ad4459
