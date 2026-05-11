@@ -97,7 +97,7 @@ function App() {
         currentFach = row.Name || '';
         currentDatum = row.Datum || '';
       } else if (row.Familienname && currentFach) {
-        const schulerName = `${row.Vorname || ''} ${row.Familienname || ''}`.trim();
+        const schulerName = `${row.Familienname || ''} ${row.Vorname || ''}`.trim();
         if (!facher[currentFach]) {
           facher[currentFach] = {};
         }
@@ -145,13 +145,118 @@ function App() {
     return result;
   };
 
+  const checkKlassenConsistency = (data: CsvRow[]): { isConsistent: boolean; klassen: Set<string> } => {
+    const klassen = new Set<string>();
+    data.forEach((row) => {
+      if (row.Familienname && row.Klasse) {
+        klassen.add(row.Klasse.trim());
+      }
+    });
+    return {
+      isConsistent: klassen.size <= 1,
+      klassen: klassen.size > 0 ? klassen : new Set(),
+    };
+  };
+  const calculateSchuelerDurchschnitt = (data: CsvRow[]): { headers: string[]; rows: any[] } => {
+    // Sammle alle Schüler, Fächer und Noten
+    const schuelerFaecher: Record<string, Record<string, number[]>> = {};
+    let currentFach = '';
+
+    data.forEach((row) => {
+      if (row.Name) {
+        currentFach = row.Name || '';
+      } else if (row.Familienname && currentFach) {
+        const schulerName = `${row.Familienname || ''} ${row.Vorname || ''}`.trim();
+        if (!schuelerFaecher[schulerName]) {
+          schuelerFaecher[schulerName] = {};
+        }
+        if (!schuelerFaecher[schulerName][currentFach]) {
+          schuelerFaecher[schulerName][currentFach] = [];
+        }
+        if (row.Note) {
+          schuelerFaecher[schulerName][currentFach].push(parseNote(row.Note));
+        }
+      }
+    });
+
+    // Erstelle eine Liste aller Fächer (für die Spalten)
+    const faecherSet = new Set<string>();
+    Object.values(schuelerFaecher).forEach((faecher) => {
+      Object.keys(faecher).forEach((fach) => faecherSet.add(fach));
+    });
+    const sortedFaecher = Array.from(faecherSet).sort();
+
+    // Erstelle die Tabellenzeilen
+    const rows: any[] = [];
+    Object.entries(schuelerFaecher).forEach(([schulerName, faecher]) => {
+      const row: Record<string, any> = { Name: schulerName };
+      sortedFaecher.forEach((fach) => {
+        const noten = faecher[fach] || [];
+        if (noten.length > 0) {
+          const durchschnitt = noten.reduce((a, b) => a + b, 0) / noten.length;
+          row[fach] = durchschnitt.toFixed(2);
+        } else {
+          row[fach] = ''; // Leer, falls kein Eintrag für dieses Fach
+        }
+      });
+      rows.push(row);
+    });
+
+    // Sortiere die Schüler alphabetisch
+    rows.sort((a, b) => a.Name.localeCompare(b.Name));
+
+    return {
+      headers: ['Name', ...sortedFaecher],
+      rows,
+    };
+  };
+
   const sortedData = sortCsvData(csvData);
   const evaluation = evaluateByFach(sortedData);
+  const { isConsistent, klassen } = checkKlassenConsistency(sortedData);
+  const schuelerDurchschnitt = isConsistent && klassen.size === 1 ? calculateSchuelerDurchschnitt(sortedData) : null;
+
+
 
   return (
     <div style={{ padding: '20px' }}>
       <h1>CSV-Datei importieren und auswerten</h1>
       <FileUpload onCsvParsed={handleCsvParsed} />
+
+      {!isConsistent && klassen.size > 0 && (
+        <div style={{ color: 'red', marginBottom: '20px', marginTop: '20px', padding: '10px', backgroundColor: '#ffebee' }}>
+          <strong>Warnung:</strong> Unterschiedliche Klassen gefunden: {Array.from(klassen).join(', ')}.
+          Bitte überprüfe die CSV-Datei.
+        </div>
+      )}
+
+      {schuelerDurchschnitt && (
+        <div style={{ marginBottom: '30px' }}>
+          <h2>Notendurchschnitte pro Schüler</h2>
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f2f2f2' }}>
+                {schuelerDurchschnitt.headers.map((header) => (
+                  <th key={header} style={{ border: '1px solid #ddd', padding: '8px' }}>
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {schuelerDurchschnitt.rows.map((row, index) => (
+                <tr key={index}>
+                  {schuelerDurchschnitt.headers.map((header) => (
+                    <td key={header} style={{ border: '1px solid #ddd', padding: '8px' }}>
+                      {row[header]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {Object.keys(evaluation).length > 0 && (
         <div>
