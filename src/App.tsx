@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import FileUpload from './components/FileUpload';
 
+//Todo: Notiz dass hier nur angelegte Prüfungen rauskommen.
+
 interface CsvRow {
   Name?: string;
   Familienname?: string;
